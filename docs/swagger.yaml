@@ -1,0 +1,387 @@
+openapi: 3.0.0
+servers:
+  - description: SwaggerHub API Auto Mocking
+    url: https://virtserver.swaggerhub.com/VLYASHCHENKO01/comments/1.0.0
+  - description: SwaggerHub API Auto Mocking
+    url: https://virtserver.swaggerhub.com/VLYASHCHENKO01/reviews/1.0.0
+  - description: SwaggerHub API Auto Mocking
+    url: http://localhost:8080/api/v1
+info:
+  version: 1.0.0
+  title: Rest api reviews
+  description: REST API implementation of comments for a product
+paths:
+  /products/{product_id}/reviews:
+    post:
+      summary: "Create a new review for a product"
+      tags:
+        - Reviews
+      parameters:
+        - name: product_id
+          in: path
+          required: true
+          description: "Product identifier"
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: object
+                  required: [type, attributes]
+                  properties:
+                    type:
+                      type: string
+                      description: "Type of the resource"
+                      example: "review"
+                    attributes:
+                      type: object
+                      properties:
+                        rating:
+                          type: integer
+                          format: int32
+                          description: "Product rating on a 5-point scale"
+                          minimum: 1
+                          maximum: 5
+                        content:
+                          type: string
+                          description: "Text of the review"
+      responses:
+        201:
+          description: "Review created successfully"
+          content:
+            application/vnd.api+json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                        example: "review"
+                      id:
+                        type: string
+                        description: "Unique identifier for the created review"
+                      attributes:
+                        type: object
+                        properties:
+                          rating:
+                            type: integer
+                          content:
+                            type: string
+                          product_id:
+                            type: integer
+        'default':
+          description: Non-standard request
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: "#/components/schemas/JSONAPIError"
+    get:
+      summary: Method for retrieving all comments for a specific product, with options for including ratings.
+      tags:
+        - Reviews
+      description: Returns a paginated and sortable list of comments for a specific product. Includes ratings if requested.
+      operationId: getReviewsByProductId
+      parameters:
+        - name: product_id
+          in: path
+          required: true
+          description: Product ID
+          schema:
+            type: string
+          example: '123e4567-e89b-12d3-a456-426614174000'
+        - name: include
+          in: query
+          schema:
+            type: string
+          description: Include related resources, such as ratings. Use 'ratings' to include.
+        - name: sort
+          in: query
+          schema:
+            type: string
+          description: Sort the results by a specified field, e.g., 'rating', 'createdAt'.
+        - name: page
+          in: query
+          schema:
+            type: integer
+          description: Page number for pagination.
+        - name: limit
+          in: query
+          schema:
+            type: integer
+          description: Number of results per page for pagination.
+      responses:
+        '200':
+          description: Successful response with a paginated list of comments, optionally including ratings.
+          content:
+            application/vnd.api+json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Review"
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+        'default':
+          description: Non-standard request
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: "#/components/schemas/JSONAPIError"
+    delete:
+      summary: Method for deleting all comments for a specific product
+      tags:
+        - Reviews
+      operationId: deleteCommentById
+      parameters:
+        - name: product_id
+          in: path
+          required: true
+          description: Product Id
+          schema:
+            type: string
+          example: '123e4567-e89b-12d3-a456-426614174000'
+      responses:
+        '204':
+          description: Successful deletion of product comments, content will not be returned.
+          content: {}
+        '400':
+          description: Invalid request.
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: "#/components/schemas/JSONAPIError"
+        'default':
+          description: Unforeseen server error or other client errors
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: "#/components/schemas/JSONAPIError"
+  /products/{product_id}/reviews/{review_id}:
+    parameters:
+      - name: product_id
+        in: path
+        required: true
+        description: Product identifie
+        schema:
+          type: integer
+          format: int32
+      - name: review_id
+        in: path
+        required: true
+        description: Review identifie
+        schema:
+          type: integer
+          format: int32
+    patch:
+      summary: Method for partilly updating a review
+      tags:
+        - Reviews
+      operationId: updateCommentById
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: "#/components/schemas/ReviewUpdateRequest"
+      responses:
+        '200':
+          description: Review successfully updated
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: "#/components/schemas/Review"
+        'default':
+          description: Unforeseen server error
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: "#/components/schemas/JSONAPIError"
+    post:
+      summary: Rate a review
+      tags:
+        - Rating
+      description: Allows a user to rate a review
+      operationId: rateReview
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              type: object
+              properties:
+                rating:
+                  type: integer
+                  description: Rating assigned to review by user
+                  minimum: 1
+                  maximum: 5
+              required:
+                - rating
+      responses:
+        '200':
+          description: Rating successfully assigned to the review
+          content:
+            application/vnd.api+json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Rating successfully assigned to the review."
+        'default':
+          description: Unforeseen server error or other client errors
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: "#/components/schemas/JSONAPIError"
+    delete:
+      summary: Delete a review rating
+      tags:
+        - Rating
+      description: Allows a user to delete a rating assigned to a review
+      operationId: deleteReviewRating
+      responses:
+        '204':
+          description: Review rating successfully deleted
+        '404':
+          description: Review not found
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: "#/components/schemas/JSONAPIError"
+        'default':
+          description: Unforeseen server error or other client errors
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: "#/components/schemas/JSONAPIError"
+components:
+  schemas:
+    Review:
+      type: object
+      required:
+        - productId
+        - userId
+        - rating
+        - content
+      properties:
+        id:
+          type: integer
+          format: int32
+          example: '123e4567-e89b-12d3-a456-426614174000'
+        productId:
+          type: integer
+          format: int32
+          description: Identifier of the product the review is for
+        userId:
+          type: integer
+          format: int32
+          description: Identifier of the user who left the review
+        rating:
+          type: integer
+          format: int32
+          description: Product rating on a 5-point scale
+          minimum: 1
+          maximum: 5
+        content:
+          type: string
+          description: Text of the review
+        createdAt:
+          type: string
+          format: date-time
+          description: Date and time of review creation
+        updatedAt:
+          type: string
+          format: date-time
+          description: Date and time of the last update of the review
+    ReviewUpdate:
+      type: object
+      properties:
+        rating:
+          type: number
+          format: float
+          description: Product rating on a scale of 1 to 5, with two decimal points precision.
+        content:
+          type: string
+          description: Text of the review
+    PaginationMeta:
+      type: object
+      required:
+        - totalItems
+        - itemsPerPage
+        - totalPages
+        - currentPage
+      properties:
+        totalItems:
+          type: integer
+          format: int32
+          description: The total number of elements in the results.
+        itemsPerPage:
+          type: integer
+          format: int32
+          description: Number of elements on one page.
+        totalPages:
+          type: integer
+          format: int32
+          description: Total number of pages.
+        currentPage:
+          type: integer
+          format: int32
+          description: Current page.
+    ReviewUpdateRequest:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            type:
+              type: string
+              example: "reviews"
+            id:
+              type: string
+              example: "123e4567-e89b-12d3-a456-426614174000"
+            attributes:
+              $ref: "#/components/schemas/ReviewUpdate"
+    JSONAPIError:
+      type: object
+      required:
+        - errors
+      properties:
+        errors:
+          type: array
+          items:
+            type: object
+            required: [status, title, detail]
+            properties:
+              id:
+                type: string
+                description: Unique error identifier
+              status:
+                type: string
+                description: String representation of HTTP error status
+              code:
+                type: string
+                description: Internal error code
+              title:
+                type: string
+                description: Brief description of the error
+              detail:
+                type: string
+                description: Detailed description of the error
+              links:
+                type: object
+                properties:
+                  about:
+                    type: string
+                    format: uri
+                    description: Link with more information about the error
