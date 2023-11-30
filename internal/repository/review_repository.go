@@ -1,14 +1,14 @@
 package repository
 
 import (
-	"ReviewInterfaceAPI/internal/model"
+	"ReviewInterfaceAPI/internal/models"
 	"context"
 )
 
 type ReviewRepository interface {
-	CreateReview(ctx context.Context, review model.Review) (int, error)
-	GetReview(ctx context.Context, id int) (*model.Review, error)
-	UpdateReview(ctx context.Context, id int, reviewUpdate model.ReviewUpdate) error
+	CreateReview(ctx context.Context, review models.Review) (int, error)
+	GetReview(ctx context.Context, id int) (*models.Review, error)
+	UpdateReview(ctx context.Context, id int, reviewUpdate models.ReviewUpdate) error
 	DeleteReview(ctx context.Context, id int) error
-	ListReviews(ctx context.Context, page int, size int) ([]model.Review, error)
+	ListReviews(ctx context.Context, page int, size int) ([]models.Review, error)
 }

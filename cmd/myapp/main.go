@@ -22,11 +22,9 @@ func main() {
 	defer db.Close()
 
 	//Проверка подключения
-	err = db.Ping()
+	app := NewApp(db)
+	err = app.Start(":3000")
 	if err != nil {
-		log.Fatalf("Error connecting to database: %v", err)
-	} else {
-		log.Println("Successfully connected to DB")
+		log.Fatalf("failed to start the server: %v", err)
 	}
-
 }

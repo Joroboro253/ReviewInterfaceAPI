@@ -1,8 +1,8 @@
 package repository
 
 import (
-	"database/sql"
 	"fmt"
+	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"log"
 )
@@ -15,11 +15,11 @@ type Config struct {
 	DBName   string
 }
 
-func NewPostgresDB(cfg Config) (*sql.DB, error) {
+func NewPostgresDB(cfg Config) (*sqlx.DB, error) {
 	psqlInfo := fmt.Sprintf("host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
 		cfg.Host, cfg.Port, cfg.Username, cfg.DBName, cfg.Password)
 
-	db, err := sql.Open("postgres", psqlInfo)
+	db, err := sqlx.Open("postgres", psqlInfo)
 	if err != nil {
 		log.Fatal(err)
 	}

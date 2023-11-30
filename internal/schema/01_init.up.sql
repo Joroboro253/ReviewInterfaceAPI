@@ -1,0 +1,9 @@
+CREATE TABLE Reviews (
+    id SERIAL PRIMARY KEY,
+    productId INT NOT NULL,
+    userId INT NOT NULL,
+    rating INT CHECK (rating >= 1 AND rating <= 5),
+    content TEXT NOT NULL,
+    createdAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updatedAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
