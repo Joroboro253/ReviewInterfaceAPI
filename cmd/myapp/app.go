@@ -20,13 +20,6 @@ func NewApp(db *sqlx.DB) *App {
 	return app
 }
 
-func (app App) setupRoutes() {
-	// Configuring routes
-	app.Router.Get("/", func(writer http.ResponseWriter, request *http.Request) {
-		writer.Write([]byte("Welcome to the App!"))
-	})
-}
-
 func (app *App) Start(addr string) error {
 	return http.ListenAndServe(addr, app.Router)
 }
