@@ -33,11 +33,11 @@ func CreateTestDB(cfg Config) *sqlx.DB {
 	//Creation review table
 	//reviewSchema := `
 	//CREATE TABLE reviews (
-	//   id SERIAL PRIMARY KEY,
-	//   product_id INTEGER,
-	//   user_id INTEGER,
-	//   rating INTEGER,
-	//   content TEXT,
+	//  id SERIAL PRIMARY KEY,
+	//  product_id INTEGER,
+	//  user_id INTEGER,
+	//  rating INTEGER,
+	//  content TEXT,
 	//	created_at TIMESTAMP,
 	//	updated_at TIMESTAMP
 	//);`

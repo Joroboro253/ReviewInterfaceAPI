@@ -101,12 +101,17 @@ func (h *Handler) GetReviews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Handling request params
-	//includeRatings := r.URL.Query().Get("include") == "ratings"
+	includeRatings := r.URL.Query().Get("include") == "ratings"
 	sortField := r.URL.Query().Get("sort")
 	page := r.URL.Query().Get("page")
 	limit := r.URL.Query().Get("limit")
 	// Sql querry with params
-	baseQuery := `SELECT * FROM reviews WHERE product_id = $1`
+	baseQuery := ""
+	if includeRatings {
+		baseQuery = `SELECT reviews.*, rating FROM reviews WHERE reviews.product_id = $1`
+	} else {
+		baseQuery = `SELECT * FROM reviews WHERE product_id = $1`
+	}
 	if sortField != "" {
 		baseQuery += fmt.Sprintf(" ORDER BY %s", sortField)
 	}
@@ -121,7 +126,6 @@ func (h *Handler) GetReviews(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to query database", http.StatusInternalServerError)
 		return
 	}
-	// TODO Добавить логику для включения рейтингов
 
 	w.Header().Set("Content-Type", "application/vnd.api+json")
 	w.WriteHeader(http.StatusOK)
