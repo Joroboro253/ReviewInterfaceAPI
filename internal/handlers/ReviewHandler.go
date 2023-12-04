@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"ReviewInterfaceAPI/internal/models"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	_ "github.com/asaskevich/govalidator"
 	"github.com/go-chi/chi/v5"
@@ -180,42 +182,60 @@ func (h *Handler) DeleteReviews(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) UpdateCommentById(w http.ResponseWriter, r *http.Request) {
-	productID, err := strconv.Atoi(chi.URLParam(r, "product_id"))
+	productId, err := strconv.Atoi(chi.URLParam(r, "product_id"))
 	if err != nil {
 		http.Error(w, "Invalid product ID", http.StatusBadRequest)
 		return
 	}
 
-	var updateData models.ReviewUpdate
-	if err := json.NewDecoder(r.Body).Decode(&updateData); err != nil {
+	reviewID, err := strconv.Atoi(chi.URLParam(r, "review_id"))
+	if err != nil {
+		http.Error(w, "Invalid review ID", http.StatusBadRequest)
+		return
+	}
+
+	var req models.ReviewUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	// Здесь нужно использовать метную схему
-	var review models.ReviewUpdate
+
+	updateData := req.Data.Attributes
+
 	// Validation
 	validate := validator.New()
-	if err := validate.Struct(review); err != nil {
+	if err := validate.Struct(updateData); err != nil {
 		http.Error(w, fmt.Sprintf("Validation failed: %v", err), http.StatusBadRequest)
 		return
 	}
+
+	rating := sql.NullInt64{Valid: updateData.Rating != nil}
+	if rating.Valid {
+		rating.Int64 = int64(*updateData.Rating)
+	}
+	content := sql.NullString{Valid: updateData.Content != nil}
+	if content.Valid {
+		content.String = *updateData.Content
+	}
+
+	userID := sql.NullInt64{Valid: updateData.UserID != nil}
+	if userID.Valid {
+		userID.Int64 = int64(*updateData.UserID)
+	}
+
 	// sql query for updating
-	if updateData.Rating != nil {
-		query := `UPDATE reviews SET rating = $1 WHERE product_id = $2`
-		_, err = h.DB.Exec(query, *updateData.Rating, productID)
-		if err != nil {
-			http.Error(w, "Failed to update reviews in the database", http.StatusInternalServerError)
+	query := `UPDATE reviews SET user_id = COALESCE($1, user_id), rating = COALESCE($2, rating), content = COALESCE($3, content) WHERE product_id = $4 AND id = $5 RETURNING id`
+	var updatedReviewID int
+	err = h.DB.QueryRow(query, userID, rating, content, productId, reviewID).Scan(&updatedReviewID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "No review found with the given product ID", http.StatusNotFound)
 			return
 		}
+		http.Error(w, "Failed to update review in the database", http.StatusInternalServerError)
+		return
 	}
-	if updateData.Content != nil {
-		query := `UPDATE reviews SET content = $1 WHERE product_id = $2`
-		_, err = h.DB.Exec(query, *updateData.Content, productID)
-		if err != nil {
-			http.Error(w, "Failed to update reviews in the database", http.StatusInternalServerError)
-			return
-		}
-	}
+
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode("Reviews updated successfully")
+	json.NewEncoder(w).Encode(fmt.Sprintf("Review with ID %d for product %d updated successfully", updatedReviewID, productId))
 }

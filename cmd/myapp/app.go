@@ -37,5 +37,5 @@ func (app *App) setupRoutes() {
 	//Get
 	app.Router.Get("/products/{product_id}/reviews", reviewHandler.GetReviews)
 	app.Router.Delete("/products/{product_id}/reviews", reviewHandler.DeleteReviews)
-	app.Router.Patch("/products/{product_id}/reviews", reviewHandler.UpdateCommentById)
+	app.Router.Patch("/products/{product_id}/reviews/{review_id}", reviewHandler.UpdateCommentById)
 }
