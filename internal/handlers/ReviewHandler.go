@@ -9,6 +9,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/jmoiron/sqlx"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -19,13 +20,9 @@ type Handler struct {
 }
 
 // Structures for JSON API compliance
-type ReviewData struct {
-	Type       string        `json:"type,omitempty"`
-	Attributes models.Review `json:"attributes,omitempty"`
-}
 
 type RequestBody struct {
-	Data ReviewData `json:"data"`
+	Data models.ReviewData `json:"data"`
 }
 
 type ResponseData struct {
@@ -70,6 +67,7 @@ func (h *Handler) CreateReview(w http.ResponseWriter, r *http.Request) {
 
 	// SQL запрос для вставки нового отзывава
 	query := `INSERT INTO reviews (product_id, user_id, rating, content, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
+	// SQL запрос для вставки нового отзывава
 	var reviewID int
 	err = h.DB.QueryRowx(query, review.ProductID, review.UserID, review.Rating, review.Content, review.CreatedAt, review.UpdatedAt).Scan(&reviewID)
 	if err != nil {
@@ -103,8 +101,18 @@ func (h *Handler) GetReviews(w http.ResponseWriter, r *http.Request) {
 	// Handling request params
 	includeRatings := r.URL.Query().Get("include") == "ratings"
 	sortField := r.URL.Query().Get("sort")
-	page := r.URL.Query().Get("page")
-	limit := r.URL.Query().Get("limit")
+	pageStr := r.URL.Query().Get("page")
+	limitStr := r.URL.Query().Get("limit")
+	// Converting page and limit
+	page, _ := strconv.Atoi(pageStr)
+	limit, _ := strconv.Atoi(limitStr)
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10 // Default limit
+	}
+	offset := (page - 1) * limit
 	// Sql querry with params
 	baseQuery := ""
 	if includeRatings {
@@ -115,9 +123,8 @@ func (h *Handler) GetReviews(w http.ResponseWriter, r *http.Request) {
 	if sortField != "" {
 		baseQuery += fmt.Sprintf(" ORDER BY %s", sortField)
 	}
-	if limit != "" && page != "" {
-		baseQuery += fmt.Sprintf(" LIMIT %s OFFSET %s", limit, page)
-	}
+
+	baseQuery += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
 
 	// Executing query
 	var reviews []models.Review
@@ -126,13 +133,34 @@ func (h *Handler) GetReviews(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to query database", http.StatusInternalServerError)
 		return
 	}
+	// Query to get the total number of reviews
+	var totalReviews int
+	countQuery := `SELECT COUNT(*) FROM reviews WHERE product_id = $1`
+	err = h.DB.Get(&totalReviews, countQuery, productID)
+	if err != nil {
+		http.Error(w, "Failed to query total reviews count", http.StatusInternalServerError)
+		return
+	}
+	// Calculate total pages
+	totalPages := int(math.Ceil(float64(totalReviews) / float64(limit)))
+
+	// Pagination metadata
+	paginationMeta := map[string]int{
+		"totalReviews": totalReviews,
+		"totalPages":   totalPages,
+		"currentPage":  page,
+		"limit":        limit,
+	}
+
+	// Forming the response
+	response := map[string]interface{}{
+		"data": reviews,
+		"meta": paginationMeta,
+	}
 
 	w.Header().Set("Content-Type", "application/vnd.api+json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"data": reviews,
-		// TODO add meta data for pagination
-	})
+	json.NewEncoder(w).Encode(response)
 }
 
 func (h *Handler) DeleteReviews(w http.ResponseWriter, r *http.Request) {

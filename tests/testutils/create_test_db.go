@@ -24,9 +24,9 @@ func CreateTestDB(cfg Config) *sqlx.DB {
 	//Creation a product table
 	//productSchema := `
 	//CREATE TABLE products (
-	//   id SERIAL PRIMARY KEY,
-	//   name TEXT,
-	//   description TEXT
+	//  id SERIAL PRIMARY KEY,
+	//  name TEXT,
+	//  description TEXT
 	//);`
 	//db.MustExec(productSchema)
 	//
