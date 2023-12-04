@@ -104,34 +104,36 @@ func (h *Handler) CreateReview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetReviews(w http.ResponseWriter, r *http.Request) {
-	// Extraction product_id from URL
+	// Извлечение product_id из URL
 	productID, err := strconv.Atoi(chi.URLParam(r, "product_id"))
 	if err != nil {
 		sendApiError(w, models.ErrInvalidInput)
 		return
 	}
-	// Handling request params
-	includeRatings := r.URL.Query().Get("include") == "ratings"
+	log.Printf("Product id: %v", productID)
+	// Обработка параметров запроса
 	sortField := r.URL.Query().Get("sort")
 	pageStr := r.URL.Query().Get("page")
 	limitStr := r.URL.Query().Get("limit")
-	// Converting page and limit
-	page, _ := strconv.Atoi(pageStr)
-	limit, _ := strconv.Atoi(limitStr)
-	if page < 1 {
+
+	// Конвертация page и limit
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
 		page = 1
 	}
-	if limit < 1 {
-		limit = 10 // Default limit
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 {
+		limit = 10 // Значение по умолчанию
 	}
 
 	reviewService := service.NewReviewService(h.DB)
-	reviews, totalReviews, totalPages, err := reviewService.GetReviewsByProductID(productID, includeRatings, sortField, page, limit)
+	reviews, totalReviews, totalPages, err := reviewService.GetReviewsByProductID(productID, sortField, page, limit)
 	if err != nil {
 		sendApiError(w, models.ErrDatabaseProblem)
 		return
 	}
-	// Pagination metadata
+
+	// Метаданные пагинации
 	paginationMeta := map[string]int{
 		"totalReviews": totalReviews,
 		"totalPages":   totalPages,
@@ -139,7 +141,7 @@ func (h *Handler) GetReviews(w http.ResponseWriter, r *http.Request) {
 		"limit":        limit,
 	}
 
-	// Forming the response
+	// Формирование ответа
 	response := map[string]interface{}{
 		"data": reviews,
 		"meta": paginationMeta,
@@ -172,22 +174,19 @@ func (h *Handler) UpdateReviewById(w http.ResponseWriter, r *http.Request) {
 		sendApiError(w, models.ErrInvalidInput)
 		return
 	}
-
 	reviewID, err := strconv.Atoi(chi.URLParam(r, "review_id"))
 	if err != nil {
 		sendApiError(w, models.ErrInvalidInput)
 		return
 	}
-
+	// Decoding
 	var req models.ReviewUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		sendApiError(w, models.ErrInvalidInput)
 		return
 	}
-
-	updateData := req.Data.Attributes
-
 	// Validation
+	updateData := req.Data.Attributes
 	validate := validator.New()
 	if err := validate.Struct(updateData); err != nil {
 		sendApiError(w, models.ErrInvalidInput)

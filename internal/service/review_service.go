@@ -2,9 +2,10 @@ package service
 
 import (
 	"ReviewInterfaceAPI/internal/models"
-	"database/sql"
 	"fmt"
+	"github.com/Masterminds/squirrel"
 	"github.com/jmoiron/sqlx"
+	"log"
 	"math"
 )
 
@@ -17,73 +18,121 @@ func NewReviewService(db *sqlx.DB) *ReviewService {
 }
 
 func (s *ReviewService) CreateReview(review *models.Review) (int, error) {
-	query := `INSERT INTO reviews (product_id, user_id, rating, content, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
-	var reviewID int
-	err := s.DB.QueryRow(query, review.ProductID, review.UserID, review.Rating, review.Content, review.CreatedAt, review.UpdatedAt).Scan(&reviewID)
+	query, args, err := squirrel.Insert("reviews").
+		Columns("product_id", "user_id", "rating", "content", "created_at", "updated_at").
+		Values(review.ProductID, review.UserID, review.Rating, review.Content, review.CreatedAt, review.UpdatedAt).
+		Suffix("RETURNING id").
+		ToSql()
 	if err != nil {
 		return 0, err
 	}
+
+	var reviewID int
+	err = s.DB.QueryRow(query, args...).Scan(&reviewID)
 	return reviewID, nil
 }
 
-func (s *ReviewService) GetReviewsByProductID(productID int, includeRatings bool, sortField string, page, limit int) ([]models.Review, int, int, error) {
-	//Construct base query
-	baseQuery := ""
-	if includeRatings {
-		baseQuery = `SELECT reviews.*, rating FROM reviews WHERE reviews.product_id = $1`
-	} else {
-		baseQuery = `SELECT * FROM reviews WHERE product_id = $1`
+func (s *ReviewService) GetReviewsByProductID(productID int, sortField string, page, limit int) ([]models.Review, int, int, error) {
+	// Проверка и корректировка параметров пагинации
+	if page < 1 {
+		page = 1
 	}
-	if sortField != "" {
-		baseQuery += fmt.Sprintf(" ORDER BY %s", sortField)
+	if limit < 1 {
+		limit = 10 // Установка значения по умолчанию
 	}
-	offset := (page - 1) * limit
-	baseQuery += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
+	// Получение самих отзывов
+	countBuilder := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).
+		Select("COUNT(*)").
+		From("reviews").
+		Where(squirrel.Eq{"product_id": productID})
 
-	// Execute query
-	var reviews []models.Review
-	err := s.DB.Select(&reviews, baseQuery, productID)
+	// Подсчет общего количества отзывов
+	countQuery, countArgs, err := countBuilder.ToSql()
+	log.Printf("Count Query: %s, Args: %v", countQuery, countArgs)
 	if err != nil {
-		return nil, 0, 0, err
+		log.Printf("error building count SQL query: %v", err)
+		return nil, 0, 0, fmt.Errorf("error building count SQL query: %w", err)
 	}
-	// Query to get the total number of reviews
+
 	var totalReviews int
-	countQuery := `SELECT COUNT(*) FROM reviews WHERE product_id = $1`
-	err = s.DB.Get(&totalReviews, countQuery, productID)
+	err = s.DB.Get(&totalReviews, countQuery, countArgs...)
 	if err != nil {
-		return nil, 0, 0, err
+		log.Printf("error executing count SQL query: %v", err)
+		return nil, 0, 0, fmt.Errorf("error executing count SQL query: %w", err)
 	}
-	// Calculate total pages
+
+	reviewBuilder := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).
+		Select("*").
+		From("reviews").
+		Where(squirrel.Eq{"product_id": productID})
+
+	if sortField != "" {
+		reviewBuilder = reviewBuilder.OrderBy(sortField)
+	}
+
+	query, args, err := reviewBuilder.Limit(uint64(limit)).Offset(uint64((page - 1) * limit)).ToSql()
+	if err != nil {
+		log.Printf("error building SQL query: %v", err)
+		return nil, 0, 0, fmt.Errorf("error building SQL query: %w", err)
+	}
+
+	var reviews []models.Review
+	err = s.DB.Select(&reviews, query, args...)
+	if err != nil {
+		log.Printf("error executing SQL query: %v", err)
+		return nil, 0, 0, fmt.Errorf("error executing SQL query: %w", err)
+	}
+
+	// Расчет общего количества страниц
 	totalPages := int(math.Ceil(float64(totalReviews) / float64(limit)))
 
+	// Возвращение результатов
 	return reviews, totalReviews, totalPages, nil
 }
-
 func (s *ReviewService) UpdateReview(productId, reviewId int, updateData models.ReviewUpdate) (int, error) {
-	rating := sql.NullInt64{Valid: updateData.Rating != nil}
-	if rating.Valid {
-		rating.Int64 = int64(*updateData.Rating)
+	// Инициализация SQL-строителя запросов
+	builder := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).
+		Update("reviews")
+
+	// Добавление условий обновления, если они предоставлены
+	if updateData.UserID != nil {
+		builder = builder.Set("user_id", *updateData.UserID)
 	}
-	content := sql.NullString{Valid: updateData.Content != nil}
-	if content.Valid {
-		content.String = *updateData.Content
+	if updateData.Rating != nil {
+		builder = builder.Set("rating", *updateData.Rating)
 	}
-	userID := sql.NullInt64{Valid: updateData.UserID != nil}
-	if userID.Valid {
-		userID.Int64 = int64(*updateData.UserID)
+	if updateData.Content != nil {
+		builder = builder.Set("content", *updateData.Content)
 	}
-	// sql query for updating
-	query := `UPDATE reviews SET user_id = COALESCE($1, user_id), rating = COALESCE($2, rating), content = COALESCE($3, content) WHERE product_id = $4 AND id = $5 RETURNING id`
-	var updatedReviewID int
-	err := s.DB.QueryRow(query, userID, rating, content, productId, reviewId).Scan(&updatedReviewID)
+
+	// Добавление условий WHERE и RETURNING
+	query, args, err := builder.Where(squirrel.Eq{"id": reviewId, "product_id": productId}).
+		Suffix("RETURNING id").
+		ToSql()
 	if err != nil {
 		return 0, err
 	}
+
+	// Выполнение запроса
+	var updatedReviewID int
+	err = s.DB.QueryRow(query, args...).Scan(&updatedReviewID)
+	if err != nil {
+		return 0, err
+	}
+
 	return updatedReviewID, nil
 }
 
 func (s *ReviewService) DeleteReviewsByProductID(productID int) error {
-	query := `DELETE FROM reviews WHERE product_id = $1`
-	_, err := s.DB.Exec(query, productID)
+	builder := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).
+		Delete("").
+		From("reviews").
+		Where(squirrel.Eq{"product_id": productID})
+
+	query, args, err := builder.ToSql()
+	if err != nil {
+		return err
+	}
+	_, err = s.DB.Exec(query, args...)
 	return err
 }
