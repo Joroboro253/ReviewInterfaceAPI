@@ -18,16 +18,12 @@ func main() {
 		DBName:   "ProductReviewsDB",
 	}
 	var db *sqlx.DB
-	log.Println("Работаем")
 	envValue := os.Getenv("ENV")
 	log.Println("ENV value:", envValue)
 
 	if os.Getenv("ENV") == "development" {
-		log.Println("Зашли в иф")
 		db = testutils.CreateTestDB(testutils.Config(cfg))
-		log.Println("Создали БД")
 	} else {
-		log.Println("Зашли в езлэ")
 
 		// Подключение к бд
 		var err error
@@ -38,17 +34,6 @@ func main() {
 	}
 
 	defer db.Close()
-	log.Println("Я перед обработчиком")
-	// Handler initialization
-	//reviewHandler := &handlers.Handler{
-	//	DB: db,
-	//}
-
-	// Routes setting
-	log.Println("Перед роутером")
-
-	//r.Post("/products/{product_id}/reviews", reviewHandler.CreateReview)
-	// Other routes
 
 	//Проверка подключения
 	app := NewApp(db)
