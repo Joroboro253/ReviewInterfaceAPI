@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"ReviewInterfaceAPI/internal/models"
+	"ReviewInterfaceAPI/internal/service"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -11,7 +12,6 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/jmoiron/sqlx"
 	"log"
-	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -52,7 +52,6 @@ func sendApiError(w http.ResponseWriter, apiErr *models.APIError) {
 }
 
 func (h *Handler) CreateReview(w http.ResponseWriter, r *http.Request) {
-	log.Println("CreateReview called")
 	productIDStr := chi.URLParam(r, "product_id")
 	productId, err := strconv.Atoi(productIDStr)
 	if err != nil {
@@ -81,11 +80,8 @@ func (h *Handler) CreateReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// SQL запрос для вставки нового отзывава
-	query := `INSERT INTO reviews (product_id, user_id, rating, content, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
-	// SQL запрос для вставки нового отзывава
-	var reviewID int
-	err = h.DB.QueryRowx(query, review.ProductID, review.UserID, review.Rating, review.Content, review.CreatedAt, review.UpdatedAt).Scan(&reviewID)
+	reviewService := service.NewReviewService(h.DB)
+	reviewID, err := reviewService.CreateReview(&review)
 	if err != nil {
 		log.Printf("Error inserting review into database: %v", err)
 		sendApiError(w, models.ErrDatabaseProblem)
@@ -128,38 +124,13 @@ func (h *Handler) GetReviews(w http.ResponseWriter, r *http.Request) {
 	if limit < 1 {
 		limit = 10 // Default limit
 	}
-	offset := (page - 1) * limit
-	// Sql querry with params
-	baseQuery := ""
-	if includeRatings {
-		baseQuery = `SELECT reviews.*, rating FROM reviews WHERE reviews.product_id = $1`
-	} else {
-		baseQuery = `SELECT * FROM reviews WHERE product_id = $1`
-	}
-	if sortField != "" {
-		baseQuery += fmt.Sprintf(" ORDER BY %s", sortField)
-	}
 
-	baseQuery += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
-
-	// Executing query
-	var reviews []models.Review
-	err = h.DB.Select(&reviews, baseQuery, productID)
+	reviewService := service.NewReviewService(h.DB)
+	reviews, totalReviews, totalPages, err := reviewService.GetReviewsByProductID(productID, includeRatings, sortField, page, limit)
 	if err != nil {
 		sendApiError(w, models.ErrDatabaseProblem)
 		return
 	}
-	// Query to get the total number of reviews
-	var totalReviews int
-	countQuery := `SELECT COUNT(*) FROM reviews WHERE product_id = $1`
-	err = h.DB.Get(&totalReviews, countQuery, productID)
-	if err != nil {
-		sendApiError(w, models.ErrDatabaseProblem)
-		return
-	}
-	// Calculate total pages
-	totalPages := int(math.Ceil(float64(totalReviews) / float64(limit)))
-
 	// Pagination metadata
 	paginationMeta := map[string]int{
 		"totalReviews": totalReviews,
@@ -185,8 +156,8 @@ func (h *Handler) DeleteReviews(w http.ResponseWriter, r *http.Request) {
 		sendApiError(w, models.ErrInvalidInput)
 		return
 	}
-	query := `DELETE FROM reviews WHERE product_id = $1`
-	_, err = h.DB.Exec(query, productID)
+	reviewService := service.NewReviewService(h.DB)
+	err = reviewService.DeleteReviewsByProductID(productID)
 	if err != nil {
 		sendApiError(w, models.ErrDatabaseProblem)
 		return
@@ -195,7 +166,7 @@ func (h *Handler) DeleteReviews(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handler) UpdateCommentById(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) UpdateReviewById(w http.ResponseWriter, r *http.Request) {
 	productId, err := strconv.Atoi(chi.URLParam(r, "product_id"))
 	if err != nil {
 		sendApiError(w, models.ErrInvalidInput)
@@ -223,24 +194,8 @@ func (h *Handler) UpdateCommentById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rating := sql.NullInt64{Valid: updateData.Rating != nil}
-	if rating.Valid {
-		rating.Int64 = int64(*updateData.Rating)
-	}
-	content := sql.NullString{Valid: updateData.Content != nil}
-	if content.Valid {
-		content.String = *updateData.Content
-	}
-
-	userID := sql.NullInt64{Valid: updateData.UserID != nil}
-	if userID.Valid {
-		userID.Int64 = int64(*updateData.UserID)
-	}
-
-	// sql query for updating
-	query := `UPDATE reviews SET user_id = COALESCE($1, user_id), rating = COALESCE($2, rating), content = COALESCE($3, content) WHERE product_id = $4 AND id = $5 RETURNING id`
-	var updatedReviewID int
-	err = h.DB.QueryRow(query, userID, rating, content, productId, reviewID).Scan(&updatedReviewID)
+	reviewService := service.NewReviewService(h.DB)
+	updatedReviewID, err := reviewService.UpdateReview(productId, reviewID, updateData)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			sendApiError(w, models.ErrReviewNotFound)
