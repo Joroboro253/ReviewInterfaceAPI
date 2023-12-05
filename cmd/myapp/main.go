@@ -14,14 +14,14 @@ func main() {
 		Password: "bestuser",
 		DBName:   "ProductReviewsDB",
 	}
-	// Подключение к бд
+	// Connect to DB
 	var err error
 	db, err := repository.NewPostgresDB(cfg)
 	if err != nil {
 		log.Fatalf("failed to initialize db: %v", err)
 	}
 	defer db.Close()
-	//Проверка Соединения
+	// connection test
 	app := NewApp(db)
 	err = app.Start(":3000")
 	if err != nil {

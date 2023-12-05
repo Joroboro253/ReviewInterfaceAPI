@@ -89,7 +89,7 @@ func (h *Handler) CreateReview(w http.ResponseWriter, r *http.Request) {
 	}
 	review.ID = reviewID
 
-	// Формирование запроса
+	// Query generation
 	respBody := ResponseBody{
 		Data: ResponseData{
 			Type:       "review",
@@ -104,26 +104,26 @@ func (h *Handler) CreateReview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetReviews(w http.ResponseWriter, r *http.Request) {
-	// Извлечение product_id из URL
+	// Extracting product_id from URL
 	productID, err := strconv.Atoi(chi.URLParam(r, "product_id"))
 	if err != nil {
 		sendApiError(w, models.ErrInvalidInput)
 		return
 	}
 	log.Printf("Product id: %v", productID)
-	// Обработка параметров запроса
+	// Query parameter processing
 	sortField := r.URL.Query().Get("sort")
 	pageStr := r.URL.Query().Get("page")
 	limitStr := r.URL.Query().Get("limit")
 
-	// Конвертация page и limit
+	// Conversion page and limit
 	page, err := strconv.Atoi(pageStr)
 	if err != nil || page < 1 {
 		page = 1
 	}
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < 1 {
-		limit = 10 // Значение по умолчанию
+		limit = 10 // default value
 	}
 
 	reviewService := service.NewReviewService(h.DB)
@@ -133,7 +133,7 @@ func (h *Handler) GetReviews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Метаданные пагинации
+	// Pagination metadata
 	paginationMeta := map[string]int{
 		"totalReviews": totalReviews,
 		"totalPages":   totalPages,
@@ -141,7 +141,7 @@ func (h *Handler) GetReviews(w http.ResponseWriter, r *http.Request) {
 		"limit":        limit,
 	}
 
-	// Формирование ответа
+	// Response formation
 	response := map[string]interface{}{
 		"data": reviews,
 		"meta": paginationMeta,

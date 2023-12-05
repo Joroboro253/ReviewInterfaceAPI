@@ -42,20 +42,20 @@ func (s *ReviewService) CreateReview(review *models.Review) (int, error) {
 }
 
 func (s *ReviewService) GetReviewsByProductID(productID int, sortField string, page, limit int) ([]models.Review, int, int, error) {
-	// Проверка и корректировка параметров пагинации
+	// Pagination param check
 	if page < 1 {
 		page = 1
 	}
 	if limit < 1 {
-		limit = 10 // Установка значения по умолчанию
+		limit = 10 // Default setting
 	}
-	// Получение самих отзывов
+	// Getting revews
 	countBuilder := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).
 		Select("COUNT(*)").
 		From("reviews").
 		Where(squirrel.Eq{"product_id": productID})
 
-	// Подсчет общего количества отзывов
+	// Counting the total number of reviews
 	countQuery, countArgs, err := countBuilder.ToSql()
 	log.Printf("Count Query: %s, Args: %v", countQuery, countArgs)
 	if err != nil {
@@ -84,7 +84,7 @@ func (s *ReviewService) GetReviewsByProductID(productID int, sortField string, p
 		log.Printf("error building SQL query: %v", err)
 		return nil, 0, 0, fmt.Errorf("error building SQL query: %w", err)
 	}
-
+	// Pagination
 	var reviews []models.Review
 	err = s.DB.Select(&reviews, query, args...)
 	if err != nil {
@@ -92,18 +92,18 @@ func (s *ReviewService) GetReviewsByProductID(productID int, sortField string, p
 		return nil, 0, 0, fmt.Errorf("error executing SQL query: %w", err)
 	}
 
-	// Расчет общего количества страниц
+	// Calculation of total pages
 	totalPages := int(math.Ceil(float64(totalReviews) / float64(limit)))
 
-	// Возвращение результатов
+	// Return of results
 	return reviews, totalReviews, totalPages, nil
 }
 func (s *ReviewService) UpdateReview(productId, reviewId int, updateData models.ReviewUpdate) (int, error) {
-	// Инициализация SQL-строителя запросов
+	// Initialization of SQL-builder queries
 	builder := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).
 		Update("reviews")
 
-	// Добавление условий обновления, если они предоставлены
+	// Add Update Conditions if provided
 	if updateData.UserID != nil {
 		builder = builder.Set("user_id", *updateData.UserID)
 	}
@@ -114,7 +114,7 @@ func (s *ReviewService) UpdateReview(productId, reviewId int, updateData models.
 		builder = builder.Set("content", *updateData.Content)
 	}
 
-	// Добавление условий WHERE и RETURNING
+	// Adding WHERE and RETURNING Conditions
 	query, args, err := builder.Where(squirrel.Eq{"id": reviewId, "product_id": productId}).
 		Suffix("RETURNING id").
 		ToSql()
@@ -122,7 +122,7 @@ func (s *ReviewService) UpdateReview(productId, reviewId int, updateData models.
 		return 0, err
 	}
 
-	// Выполнение запроса
+	// Executing the query
 	var updatedReviewID int
 	err = s.DB.QueryRow(query, args...).Scan(&updatedReviewID)
 	if err != nil {
